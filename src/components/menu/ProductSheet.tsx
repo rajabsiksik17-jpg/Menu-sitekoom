@@ -49,10 +49,11 @@ export function ProductSheet(props: {
     });
   };
 
+  // Same five rules as the POS editor: one · one or none · up to N · exactly N · from N to M.
   const rule = (g: Product["groups"][number]) =>
-    g.max === 1 ? t("product.chooseOne")
+    g.max === 1 ? (g.min >= 1 ? t("product.chooseOne") : t("product.chooseOneOptional"))
       : g.min === 0 ? t("product.chooseUpTo", g.max)
-      : g.min === g.max ? t("product.chooseAtLeast", g.min)
+      : g.min === g.max ? t("product.chooseExactly", g.min)
       : t("product.chooseBetween", g.min, g.max);
 
   const submit = () => {
