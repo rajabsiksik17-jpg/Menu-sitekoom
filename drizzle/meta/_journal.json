@@ -29,6 +29,13 @@
       "when": 1791516877556,
       "tag": "0003_table_sessions_invoices",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791569276580,
+      "tag": "0004_product_available_at",
+      "breakpoints": true
     }
   ]
 }

@@ -12,7 +12,7 @@ import { checkLocation } from "@/lib/geo";
 import { rateLimit } from "@/lib/rate-limit";
 import { notify, channels } from "@/lib/events";
 import { mediaUrl } from "@/lib/media";
-import { findRestaurantBySlug, resolveTable, DEFAULT_THEME } from "./menu";
+import { availableNow, findRestaurantBySlug, resolveTable, DEFAULT_THEME } from "./menu";
 import { orderingOpen } from "./entitlement";
 import { attachSession, bumpSession, notifySessions, sessionHidden } from "./sessions";
 
@@ -118,7 +118,7 @@ export async function priceItems(db: Db, restaurantId: string, defaultPrep: numb
   return items.map((item, index) => {
     const p = byId.get(item.productId);
     if (!p || !p.isActive) throw new AppError("product_not_found", 400, { index });
-    if (!p.isAvailable) throw new AppError("product_unavailable", 409, { index, name: p.nameAr });
+    if (!availableNow(p)) throw new AppError("product_unavailable", 409, { index, name: p.nameAr });
     const productVars = vars.filter((v) => v.productPosId === p.posId);
     let base = p.price;
     let variantName: string | null = null;

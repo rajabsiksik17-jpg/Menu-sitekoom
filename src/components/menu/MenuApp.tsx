@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { dirOf, pick, translator, type Lang } from "@/lib/i18n";
 import { lineKey, money, unitPrice, type CartLine, type Menu, type Product } from "./types";
+import { unavailableLabel } from "./types";
 import { ProductSheet, ClockIcon } from "./ProductSheet";
 import { CartSheet } from "./CartSheet";
 import { SessionSheet, type SessionTab } from "./SessionSheet";
@@ -393,7 +394,7 @@ function ProductGrid(props: { items: Product[]; menu: Menu; lang: Lang; canOrder
                   <span className="font-bold text-brand">{money(p.price, menu.restaurant.currency, lang)}</span>
                   <span className="flex items-center gap-1 text-muted"><ClockIcon />{t("menu.prepShort", p.prepMinutes)}</span>
                 </div>
-                {!p.available && <div className="mt-1 text-xs font-medium text-red-600">{t("menu.unavailable")}</div>}
+                {!p.available && <div className="mt-1 text-xs font-medium text-red-600">{unavailableLabel(p, menu, lang)}</div>}
               </button>
               <div className="relative size-28 shrink-0 overflow-hidden rounded-xl bg-line">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -415,7 +416,7 @@ function ProductGrid(props: { items: Product[]; menu: Menu; lang: Lang; canOrder
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 {p.image ? <img src={p.image} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" /> : <Placeholder name={pick(lang, p.nameAr, p.nameEn)} />}
                 <div className="absolute start-2 top-2"><Badges p={p} lang={lang} /></div>
-                {!p.available && <div className="absolute inset-x-0 bottom-0 bg-black/60 py-1 text-center text-xs font-medium text-white">{t("menu.unavailable")}</div>}
+                {!p.available && <div className="absolute inset-x-0 bottom-0 bg-black/60 py-1 text-center text-xs font-medium text-white">{unavailableLabel(p, menu, lang)}</div>}
               </div>
               <div className="flex flex-1 flex-col p-3">
                 <div className="line-clamp-2 text-[15px] font-semibold leading-snug">{pick(lang, p.nameAr, p.nameEn)}</div>

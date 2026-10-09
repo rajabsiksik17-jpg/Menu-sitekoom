@@ -112,10 +112,10 @@ export async function syncMenu(db: Db, device: Device, m: MenuPayload) {
       await tx.insert(products).values(chunk.map((p) => ({
         restaurantId: rid, posId: p.id, posUnitId: p.unitId, categoryPosId: p.categoryId ?? null, nameAr: p.nameAr, nameEn: p.nameEn ?? null,
         descriptionAr: p.description ?? null, price: toMinor(p.price, d), imageSha: p.image ?? null, prepMinutes: p.prepMinutes ?? null,
-        isAvailable: p.available, isActive: true, sort: p.sort,
+        isAvailable: p.available, availableAt: p.availableAt ?? null, isActive: true, sort: p.sort,
       }))).onConflictDoUpdate({ target: [products.restaurantId, products.posId], set: {
         posUnitId: ex("pos_unit_id"), categoryPosId: ex("category_pos_id"), nameAr: ex("name_ar"), nameEn: ex("name_en"), descriptionAr: ex("description_ar"),
-        price: ex("price"), imageSha: ex("image_sha"), prepMinutes: ex("prep_minutes"), isAvailable: ex("is_available"), isActive: ex("is_active"), sort: ex("sort"),
+        price: ex("price"), imageSha: ex("image_sha"), prepMinutes: ex("prep_minutes"), isAvailable: ex("is_available"), availableAt: ex("available_at"), isActive: ex("is_active"), sort: ex("sort"),
       } });
     }
     await tx.update(products).set({ isActive: false }).where(and(eq(products.restaurantId, rid),

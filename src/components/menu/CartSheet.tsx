@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { pick, type Lang, type TextKey } from "@/lib/i18n";
 import { money, unitPrice, type CartLine, type Menu } from "./types";
+import { unavailableLabel } from "./types";
 import { Sheet } from "./Sheet";
 import { getFix, type GeoFailure } from "./geo";
 import { ClockIcon } from "./ProductSheet";
@@ -121,7 +122,7 @@ export function CartSheet(props: {
                     <div className="font-semibold">{pick(lang, p.nameAr, p.nameEn)}{v && <span className="font-normal text-muted"> · {v.name}</span>}</div>
                     {opts.length > 0 && <div className="mt-0.5 text-sm text-muted">{opts.map((o) => o.name).join("، ")}</div>}
                     {l.note && <div className="mt-0.5 text-sm italic text-muted">“{l.note}”</div>}
-                    {!p.available && <div className="mt-1 text-sm text-red-600">{t("menu.unavailable")}</div>}
+                    {!p.available && <div className="mt-1 text-sm text-red-600">{unavailableLabel(p, menu, lang)}</div>}
                     <div className="mt-2 flex items-center gap-3">
                       <div className="flex items-center rounded-full border border-line">
                         <button type="button" disabled={busy} onClick={() => props.onQty(l.key, l.quantity - 1)} className="grid size-10 place-items-center text-brand" aria-label={l.quantity === 1 ? t("cart.remove") : "-"}>{l.quantity === 1 ? <IconTrash className="size-[18px]" /> : <IconMinus className="size-[18px]" />}</button>

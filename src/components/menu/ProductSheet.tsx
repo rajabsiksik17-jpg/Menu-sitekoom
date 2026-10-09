@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { pick, type Lang, type TextKey } from "@/lib/i18n";
 import { money, unitPrice, type Menu, type Product } from "./types";
+import { unavailableLabel } from "./types";
 import { Sheet } from "./Sheet";
 import { IconMinus, IconPlus } from "./icons";
 
@@ -90,7 +91,7 @@ export function ProductSheet(props: {
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-canvas px-3 py-1 text-ink" title={t("menu.prepEstimate")}>
                   <ClockIcon /> {t("menu.prep", p.prepMinutes)}
                 </span>
-                {!p.available && <span className="rounded-full bg-red-100 px-3 py-1 text-red-700">{t("menu.unavailable")}</span>}
+                {!p.available && <span className="rounded-full bg-red-100 px-3 py-1 text-red-700">{unavailableLabel(p, menu, lang)}</span>}
               </div>
             </div>
 

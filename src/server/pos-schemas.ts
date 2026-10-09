@@ -26,7 +26,7 @@ export const menuSchema = z.object({
   products: z.array(z.object({
     id: posId, unitId: posId, categoryId: posId.nullish(), nameAr: name, nameEn: z.string().trim().max(200).nullish(),
     description: z.string().trim().max(2000).nullish(), price: money, image: sha.nullish(),
-    prepMinutes: z.number().int().min(1).max(240).nullish(), available: z.boolean().default(true), sort: z.number().int().default(0),
+    prepMinutes: z.number().int().min(1).max(240).nullish(), available: z.boolean().default(true), availableAt: z.coerce.date().nullish(), sort: z.number().int().default(0),
     variants: z.array(z.object({ id: posId, name, price: money.nullish(), image: sha.nullish(), sort: z.number().int().default(0) })).max(100).default([]),
     groups: z.array(posId).max(50).default([]),
   })).max(5000),

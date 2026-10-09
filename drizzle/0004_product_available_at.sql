@@ -1,0 +1,1 @@
+ALTER TABLE "products" ADD COLUMN "available_at" timestamp with time zone;

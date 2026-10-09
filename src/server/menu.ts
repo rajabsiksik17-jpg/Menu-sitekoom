@@ -32,6 +32,11 @@ export async function resolveTable(db: Db, restaurantId: string, token: string |
   return old ? { kind: "replaced" } : { kind: "unknown" };
 }
 
+/** Available now: on sale, or sold out at the cashier only until a time that has passed. */
+export function availableNow(p: { isAvailable: boolean; availableAt: Date | null }, now = new Date()) {
+  return p.isAvailable || (!!p.availableAt && p.availableAt.getTime() <= now.getTime());
+}
+
 /** Everything the public menu shows, for one restaurant only. No internal configuration (geofence, devices) leaves here. */
 export async function loadPublicMenu(db: Db, slug: string, tableToken: string | null, now = new Date()) {
   const r = await findRestaurantBySlug(db, slug);
@@ -55,7 +60,7 @@ export async function loadPublicMenu(db: Db, slug: string, tableToken: string | 
     price: p.price,
     image: shaUrl(rid, p.imageSha, "sm"), imageLarge: shaUrl(rid, p.imageSha, "lg"),
     prepMinutes: p.prepMinutes ?? r.defaultPrepMinutes, prepIsDefault: p.prepMinutes == null,
-    available: p.isAvailable, featured: p.isFeatured, isNew: p.isNew, labelAr: p.labelAr, labelEn: p.labelEn, popularity: p.popularity,
+    available: availableNow(p, now), availableAt: !availableNow(p, now) && p.availableAt ? p.availableAt.toISOString() : null, featured: p.isFeatured, isNew: p.isNew, labelAr: p.labelAr, labelEn: p.labelEn, popularity: p.popularity,
     variants: vars.filter((v) => v.productPosId === p.posId).map((v) => ({ id: v.posId, name: v.name, price: v.priceOverride ?? p.price, image: shaUrl(rid, v.imageSha, "lg") })),
     groups: links.filter((l) => l.productPosId === p.posId && groupById.has(l.groupPosId)).map((l) => {
       const g = groupById.get(l.groupPosId)!;

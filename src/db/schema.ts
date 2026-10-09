@@ -171,6 +171,8 @@ export const products = pgTable("products", {
   imageSha: text("image_sha"), // SHA-256 of the POS image file; the file is uploaded once into media
   prepMinutes: integer("prep_minutes"),
   isAvailable: boolean("is_available").notNull().default(true),
+  // Sold out at the cashier until this time: available again by itself from then (no POS round trip needed).
+  availableAt: ts("available_at"),
   isActive: boolean("is_active").notNull().default(true),
   sort: integer("sort").notNull().default(0),
   // Presentation only, managed in the platform dashboard (never overwritten by a sync).

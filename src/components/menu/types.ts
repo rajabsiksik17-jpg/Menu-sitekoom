@@ -1,5 +1,5 @@
 import type { PublicMenu } from "@/server/menu";
-import type { Lang } from "@/lib/i18n";
+import { translator, type Lang } from "@/lib/i18n";
 
 export type Menu = NonNullable<PublicMenu>;
 export type Product = Menu["products"][number];
@@ -33,4 +33,12 @@ export function unitPrice(p: Product, variantId: number | null, modifierIds: num
 
 export function lineKey(productId: number, variantId: number | null, modifierIds: number[], note: string) {
   return `${productId}|${variantId ?? ""}|${[...modifierIds].sort((a, b) => a - b).join(",")}|${note.trim()}`;
+}
+
+/** "Currently unavailable", or "Back at 18:30" when the cashier set a time (shown in the restaurant's time zone). */
+export function unavailableLabel(p: Product, menu: Menu, lang: Lang) {
+  const t = translator(lang);
+  if (!p.availableAt) return t("menu.unavailable");
+  const time = new Date(p.availableAt).toLocaleTimeString(lang === "ar" ? "ar-JO-u-nu-latn" : "en-GB", { hour: "2-digit", minute: "2-digit", timeZone: menu.restaurant.timezone });
+  return `${t("menu.unavailable")} · ${t("menu.availableAt", time)}`;
 }
