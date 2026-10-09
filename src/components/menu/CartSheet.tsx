@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { pick, type Lang, type TextKey } from "@/lib/i18n";
 import { money, unitPrice, type CartLine, type Menu } from "./types";
 import { Sheet } from "./Sheet";
 import { getFix, type GeoFailure } from "./geo";
 import { ClockIcon } from "./ProductSheet";
+import { IconMinus, IconPin, IconPlus, IconTrash } from "./icons";
 
 type T = (k: TextKey, ...a: (string | number)[]) => string;
 type Phase = { kind: "idle" } | { kind: "locating" } | { kind: "sending" } | { kind: "error"; message: string; retry: boolean };
@@ -14,11 +14,11 @@ type Phase = { kind: "idle" } | { kind: "locating" } | { kind: "sending" } | { k
 export function CartSheet(props: {
   menu: Menu; lang: Lang; t: T; lines: CartLine[]; tableToken: string; storageKey: string;
   note: string; setNote: (s: string) => void;
-  onQty: (key: string, q: number) => void; onEdit: (line: CartLine) => void; onClose: () => void; onSubmitted: () => void;
+  onQty: (key: string, q: number) => void; onEdit: (line: CartLine) => void; onClose: () => void;
+  onSubmitted: (r: { number: number; trackingToken: string; sessionToken: string | null }) => void;
 }) {
   const { menu, lang, t, lines } = props;
   const cur = menu.restaurant.currency;
-  const router = useRouter();
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const byId = new Map(menu.products.map((p) => [p.id, p]));
   const priced = lines.map((l) => ({ l, p: byId.get(l.productId)! })).filter((x) => x.p);
@@ -73,8 +73,8 @@ export function CartSheet(props: {
           recent.unshift({ token: data.trackingToken, number: data.number, slug: menu.restaurant.slug, at: Date.now(), menu: window.location.pathname });
           localStorage.setItem("smenu:orders", JSON.stringify(recent.slice(0, 10)));
         } catch { /* storage unavailable: tracking still works through the link */ }
-        props.onSubmitted();
-        router.push(`/o/${data.trackingToken}`);
+        // The order is stored on the server; the "My order" sheet follows it from here (no page change).
+        props.onSubmitted({ number: data.number, trackingToken: data.trackingToken, sessionToken: data.sessionToken ?? null });
         return;
       }
       setPhase({ kind: "error", message: explain(data, res.status, location?.accuracy ?? null), retry: res.status >= 500 || res.status === 429 || String(data.error ?? "").startsWith("location_") });
@@ -124,9 +124,9 @@ export function CartSheet(props: {
                     {!p.available && <div className="mt-1 text-sm text-red-600">{t("menu.unavailable")}</div>}
                     <div className="mt-2 flex items-center gap-3">
                       <div className="flex items-center rounded-full border border-line">
-                        <button type="button" disabled={busy} onClick={() => props.onQty(l.key, l.quantity - 1)} className="grid size-10 place-items-center text-xl text-brand" aria-label={l.quantity === 1 ? t("cart.remove") : "-"}>{l.quantity === 1 ? "🗑" : "−"}</button>
+                        <button type="button" disabled={busy} onClick={() => props.onQty(l.key, l.quantity - 1)} className="grid size-10 place-items-center text-brand" aria-label={l.quantity === 1 ? t("cart.remove") : "-"}>{l.quantity === 1 ? <IconTrash className="size-[18px]" /> : <IconMinus className="size-[18px]" />}</button>
                         <span className="w-7 text-center font-semibold tabular-nums">{l.quantity}</span>
-                        <button type="button" disabled={busy} onClick={() => props.onQty(l.key, Math.min(50, l.quantity + 1))} className="grid size-10 place-items-center text-xl text-brand" aria-label="+">+</button>
+                        <button type="button" disabled={busy} onClick={() => props.onQty(l.key, Math.min(50, l.quantity + 1))} className="grid size-10 place-items-center text-brand" aria-label="+"><IconPlus className="size-[18px]" /></button>
                       </div>
                       <button type="button" disabled={busy} onClick={() => props.onEdit(l)} className="text-sm font-medium text-brand underline-offset-4 hover:underline">{t("cart.edit")}</button>
                     </div>
@@ -145,7 +145,7 @@ export function CartSheet(props: {
           )}
           {geoRequired && priced.length > 0 && (
             <div className="mt-4 rounded-2xl bg-brand/5 p-4 text-sm leading-relaxed">
-              <div className="font-semibold text-brand">📍 {t("geo.title")}</div>
+              <div className="flex items-center gap-1.5 font-semibold text-brand"><IconPin className="size-4" />{t("geo.title")}</div>
               <div className="mt-1 text-muted">{t("geo.explain")}</div>
             </div>
           )}

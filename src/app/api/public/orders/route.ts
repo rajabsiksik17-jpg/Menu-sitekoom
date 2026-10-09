@@ -8,6 +8,6 @@ export async function POST(req: Request) {
     assertSameOrigin(req);
     const input = submitSchema.parse(await readJson(req, 64 * 1024));
     const result = await submitOrder(await getDb(), input, clientIp(req));
-    return json({ number: result.number, trackingToken: result.trackingToken, status: result.status, total: result.total }, result.duplicate ? 200 : 201);
+    return json({ number: result.number, trackingToken: result.trackingToken, sessionToken: result.sessionToken, status: result.status, total: result.total }, result.duplicate ? 200 : 201);
   });
 }

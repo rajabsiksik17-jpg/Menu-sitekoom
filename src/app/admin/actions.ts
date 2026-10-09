@@ -134,6 +134,7 @@ function restaurantInput(fd: FormData): admin.RestaurantInput {
     phone: str(fd, "phone"), whatsapp: str(fd, "whatsapp"), address: str(fd, "address"), licenseCustomer: str(fd, "licenseCustomer"),
     installationCode: str(fd, "installationCode"), showContact: bool(fd, "showContact"),
     defaultLang: str(fd, "defaultLang") === "en" ? "en" : "ar", languages: langs.length ? langs : ["ar"], timezone: str(fd, "timezone") || "Asia/Amman",
+    invoiceVisibleMinutes: str(fd, "invoiceVisibleMinutes") || 15, sessionIdleMinutes: str(fd, "sessionIdleMinutes") || 240,
   };
 }
 

@@ -6,6 +6,9 @@ import { dirOf, pick, translator, type Lang } from "@/lib/i18n";
 import { lineKey, money, unitPrice, type CartLine, type Menu, type Product } from "./types";
 import { ProductSheet, ClockIcon } from "./ProductSheet";
 import { CartSheet } from "./CartSheet";
+import { SessionSheet, type SessionTab } from "./SessionSheet";
+import { useTableSession } from "./useTableSession";
+import { IconChat, IconClock, IconPhone, IconPin, IconPlus, IconReceipt, IconSearch, IconStar, IconTable, IconX } from "./icons";
 
 type Sort = "default" | "priceAsc" | "priceDesc" | "popular";
 
@@ -38,7 +41,26 @@ export function MenuApp({ menu, lang, tableToken }: { menu: Menu; lang: Lang; ta
   const [lines, setLines] = useState<CartLine[]>([]);
   const [note, setNote] = useState("");
   const [bump, setBump] = useState(0);
+  const [sessionOpen, setSessionOpen] = useState(false);
+  const [sessionTab, setSessionTab] = useState<SessionTab>("orders");
   const loaded = useRef(false);
+  const session = useTableSession(r.slug, tableToken);
+  const hasSession = !!session.token || !!session.data;
+
+  // While the sheet is open every change counts as seen; a new change while it is closed lights the badge.
+  useEffect(() => { if (sessionOpen && session.data) session.markSeen(); }, [sessionOpen, session.data]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A short vibration when an order of the table becomes ready (once per order).
+  const readySeen = useRef<Set<number> | null>(null);
+  useEffect(() => {
+    const orders = session.data?.orders;
+    if (!orders) return;
+    const ready = new Set(orders.filter((o) => o.status === "ready").map((o) => o.number));
+    if (readySeen.current && [...ready].some((n) => !readySeen.current!.has(n))) navigator.vibrate?.([200, 100, 200]);
+    readySeen.current = ready;
+  }, [session.data]);
+
+  const openSession = (tab: SessionTab = "orders") => { setSessionTab(tab); setSessionOpen(true); };
 
   // Cart survives a refresh / phone lock (per restaurant and table), never shared between tables.
   useEffect(() => {
@@ -144,6 +166,14 @@ export function MenuApp({ menu, lang, tableToken }: { menu: Menu; lang: Lang; ta
     : menu.table.kind === "none" ? t("menu.browseOnly")
     : !menu.ordering.open ? t(`menu.ordering.${menu.ordering.reason}` as Parameters<typeof t>[0]) : null;
   const name = pick(lang, r.nameAr, r.nameEn);
+  const todayHours = useMemo(() => {
+    try {
+      const wd = new Intl.DateTimeFormat("en-US", { timeZone: r.timezone, weekday: "short" }).format(new Date());
+      const day = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(wd);
+      const slots = r.openingHours.filter((h) => h.day === day).map((h) => `${h.open}–${h.close}`);
+      return slots.length ? slots.join("، ") : null;
+    } catch { return null; }
+  }, [r.openingHours, r.timezone]);
   const sortLabel: Record<Sort, string> = { default: t("menu.sort.default"), priceAsc: t("menu.sort.priceAsc"), priceDesc: t("menu.sort.priceDesc"), popular: t("menu.sort.popular") };
 
   return (
@@ -156,13 +186,16 @@ export function MenuApp({ menu, lang, tableToken }: { menu: Menu; lang: Lang; ta
             <img src={r.cover} alt="" className="h-full w-full object-cover" fetchPriority="high" />
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
-          <div className="absolute inset-x-0 top-0 flex items-center justify-between p-3">
+          <div className="absolute inset-x-0 top-0 flex items-center justify-between gap-2 p-3">
             {menu.table.kind === "ok" ? (
-              <span className="rounded-full bg-white/95 px-3 py-1.5 text-sm font-semibold text-gray-900 shadow">🪑 {t("menu.table", menu.table.name ?? menu.table.number)}</span>
+              <span className="rounded-full bg-white/95 px-3 py-1.5 text-sm font-semibold text-gray-900 shadow"><span className="flex items-center gap-1.5"><IconTable className="size-4" />{t("menu.table", menu.table.name ?? menu.table.number)}</span></span>
             ) : <span />}
-            {r.languages.length > 1 && (
-              <button type="button" onClick={switchLang} className="rounded-full bg-black/40 px-3 py-1.5 text-sm font-medium text-white backdrop-blur hover:bg-black/55">{t("menu.language")}</button>
-            )}
+            <div className="flex items-center gap-2">
+              {hasSession && <MyOrderButton label={t("session.myOrder")} unread={session.unread} unreadLabel={t("session.unread")} onClick={() => openSession()} variant="hero" />}
+              {r.languages.length > 1 && (
+                <button type="button" onClick={switchLang} className="rounded-full bg-black/40 px-3 py-1.5 text-sm font-medium text-white backdrop-blur hover:bg-black/55">{t("menu.language")}</button>
+              )}
+            </div>
           </div>
         </div>
         <div className="mx-auto -mt-12 max-w-5xl px-4">
@@ -182,8 +215,10 @@ export function MenuApp({ menu, lang, tableToken }: { menu: Menu; lang: Lang; ta
                     <span className={`size-1.5 rounded-full ${menu.ordering.open ? "bg-emerald-500" : "bg-gray-500"}`} />
                     {menu.ordering.open || menu.ordering.reason !== "closed" ? t("menu.open") : t("menu.closed")}
                   </span>
-                  {r.phone && <a href={`tel:${r.phone}`} className="rounded-full bg-canvas px-2 py-0.5 text-ink">📞 {t("menu.call")}</a>}
-                  {r.whatsapp && <a href={`https://wa.me/${r.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer" className="rounded-full bg-canvas px-2 py-0.5 text-ink">💬 {t("menu.whatsapp")}</a>}
+                  {todayHours && <span className="inline-flex items-center gap-1 rounded-full bg-canvas px-2 py-0.5 text-ink tabular-nums" dir="ltr"><IconClock className="size-3.5" />{todayHours}</span>}
+                  {r.address && <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(r.address)}`} target="_blank" rel="noopener noreferrer" className="inline-flex max-w-[16rem] items-center gap-1 rounded-full bg-canvas px-2 py-0.5 text-ink"><IconPin className="size-3.5" /><span className="truncate">{r.address}</span></a>}
+                  {r.phone && <a href={`tel:${r.phone}`} className="inline-flex items-center gap-1 rounded-full bg-canvas px-2 py-0.5 text-ink"><IconPhone className="size-3.5" />{t("menu.call")}</a>}
+                  {r.whatsapp && <a href={`https://wa.me/${r.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-full bg-canvas px-2 py-0.5 text-ink"><IconChat className="size-3.5" />{t("menu.whatsapp")}</a>}
                 </div>
               </div>
             </div>
@@ -208,7 +243,7 @@ export function MenuApp({ menu, lang, tableToken }: { menu: Menu; lang: Lang; ta
               <svg className="pointer-events-none absolute start-3 top-1/2 size-5 -translate-y-1/2 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" strokeLinecap="round" /></svg>
               <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("menu.search")} enterKeyHint="search"
                 className="btn-r h-12 w-full border border-line bg-surface ps-10 pe-10 text-base outline-none focus:border-brand" />
-              {query && <button type="button" onClick={() => setQuery("")} aria-label={t("menu.clearSearch")} className="absolute end-2 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-full text-muted hover:bg-canvas">×</button>}
+              {query && <button type="button" onClick={() => setQuery("")} aria-label={t("menu.clearSearch")} className="absolute end-2 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-full text-muted hover:bg-canvas"><IconX className="size-4" /></button>}
             </label>
             <label className="relative">
               <span className="sr-only">{t("menu.sort")}</span>
@@ -218,13 +253,14 @@ export function MenuApp({ menu, lang, tableToken }: { menu: Menu; lang: Lang; ta
               </select>
               <svg className="pointer-events-none absolute inset-0 m-auto size-5 text-ink sm:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4" strokeLinecap="round" /></svg>
             </label>
+            {hasSession && <MyOrderButton label={t("session.myOrder")} unread={session.unread} unreadLabel={t("session.unread")} onClick={() => openSession()} variant="bar" />}
           </div>
           {!results && (
             <div ref={chipsRef} className="no-scrollbar -mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-3" role="tablist">
               {menu.categories.map((c) => (
                 <button key={c.id} type="button" data-chip={c.id} role="tab" aria-selected={activeCat === c.id} onClick={() => goCategory(c.id)}
                   className={`btn-r flex h-10 shrink-0 items-center gap-1.5 border px-4 text-sm font-medium transition ${activeCat === c.id ? "border-brand bg-brand text-brand-ink" : "border-line bg-surface text-ink"}`}>
-                  {c.icon && <span aria-hidden="true">{c.icon}</span>}{pick(lang, c.nameAr, c.nameEn)}
+                  {pick(lang, c.nameAr, c.nameEn)}
                 </button>
               ))}
             </div>
@@ -244,7 +280,7 @@ export function MenuApp({ menu, lang, tableToken }: { menu: Menu; lang: Lang; ta
         {results ? (
           results.length === 0 ? (
             <div className="py-16 text-center">
-              <div className="text-4xl" aria-hidden="true">🔎</div>
+              <IconSearch className="mx-auto size-10 text-muted" strokeWidth={1.5} />
               <p className="mt-3 font-semibold">{t("menu.noResults")}</p>
               <p className="mt-1 text-sm text-muted">{t("menu.noResultsHint")}</p>
               <button type="button" onClick={() => setQuery("")} className="btn-r mt-4 border border-line bg-surface px-4 py-2 text-sm font-medium">{t("menu.clearSearch")}</button>
@@ -256,13 +292,13 @@ export function MenuApp({ menu, lang, tableToken }: { menu: Menu; lang: Lang; ta
           <>
             {featured.length > 0 && sort === "default" && (
               <section className="mt-6" aria-labelledby="featured">
-                <h2 id="featured" className="mb-3 text-lg font-bold">⭐ {t("menu.featured")}</h2>
+                <h2 id="featured" className="mb-3 flex items-center gap-2 text-lg font-bold"><IconStar className="size-5 text-accent" />{t("menu.featured")}</h2>
                 <div className="no-scrollbar -mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1">
                   {featured.map((p) => (
                     <button key={p.id} type="button" onClick={() => setOpen({ product: p })} className="card-r w-60 shrink-0 snap-start overflow-hidden border border-line bg-surface text-start shadow-sm">
                       <div className="aspect-[4/3] bg-line">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        {p.image && <img src={p.image} alt="" loading="lazy" className="h-full w-full object-cover" />}
+                        {p.image ? <img src={p.image} alt="" loading="lazy" className="h-full w-full object-cover" /> : <Placeholder name={pick(lang, p.nameAr, p.nameEn)} />}
                       </div>
                       <div className="p-3">
                         <div className="line-clamp-1 font-semibold">{pick(lang, p.nameAr, p.nameEn)}</div>
@@ -280,7 +316,7 @@ export function MenuApp({ menu, lang, tableToken }: { menu: Menu; lang: Lang; ta
                 <section key={c.id} data-cat={c.id} ref={(el) => { if (el) sectionRefs.current.set(c.id, el); else sectionRefs.current.delete(c.id); }}
                   className="scroll-mt-32 pt-7" aria-labelledby={`cat-${c.id}`}>
                   <h2 id={`cat-${c.id}`} className="mb-3 flex items-center gap-2 text-lg font-bold">
-                    {c.icon && <span aria-hidden="true">{c.icon}</span>}{pick(lang, c.nameAr, c.nameEn)}
+                    {pick(lang, c.nameAr, c.nameEn)}
                     <span className="text-sm font-normal text-muted">({items.length})</span>
                   </h2>
                   <ProductGrid items={items} menu={menu} lang={lang} canOrder={canOrder} onOpen={(p) => setOpen({ product: p })} onAdd={quickAdd} layout={r.theme.layout} cardStyle={r.theme.cardStyle} />
@@ -294,7 +330,7 @@ export function MenuApp({ menu, lang, tableToken }: { menu: Menu; lang: Lang; ta
             )}
           </>
         )}
-        <RecentOrders slug={r.slug} lang={lang} />
+        {!tableToken && <RecentOrders slug={r.slug} lang={lang} />}
         <footer className="py-10 text-center text-xs text-muted">POS-SITEKOOM</footer>
       </main>
 
@@ -323,7 +359,17 @@ export function MenuApp({ menu, lang, tableToken }: { menu: Menu; lang: Lang; ta
           onQty={(key, qn) => setLines((ls) => (qn <= 0 ? ls.filter((l) => l.key !== key) : ls.map((l) => (l.key === key ? { ...l, quantity: qn } : l))))}
           onEdit={(line) => { const p = menu.products.find((x) => x.id === line.productId); if (p) { setCartOpen(false); setOpen({ product: p, edit: line }); } }}
           onClose={() => setCartOpen(false)}
-          onSubmitted={() => { setLines([]); setNote(""); try { localStorage.removeItem(`${storageKey}:cart`); } catch { /* ignore */ } }} />
+          onSubmitted={(res) => {
+            setLines([]); setNote("");
+            try { localStorage.removeItem(`${storageKey}:cart`); } catch { /* ignore */ }
+            setCartOpen(false);
+            if (res.sessionToken) { session.setToken(res.sessionToken); openSession("orders"); }
+            else window.location.assign(`/o/${res.trackingToken}`);
+          }} />
+      )}
+      {sessionOpen && (
+        <SessionSheet data={session.data} token={session.token} ended={session.ended} online={session.online} lang={lang} t={t} tab={sessionTab}
+          onTab={setSessionTab} onClose={() => setSessionOpen(false)} onChanged={session.refresh} />
       )}
     </div>
   );
@@ -351,7 +397,7 @@ function ProductGrid(props: { items: Product[]; menu: Menu; lang: Lang; canOrder
               </button>
               <div className="relative size-28 shrink-0 overflow-hidden rounded-xl bg-line">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                {p.image && <img src={p.image} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />}
+                {p.image ? <img src={p.image} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" /> : <Placeholder name={pick(lang, p.nameAr, p.nameEn)} />}
                 {props.canOrder && p.available && <AddButton onClick={() => props.onAdd(p)} label={t("product.add")} />}
               </div>
             </div>
@@ -367,7 +413,7 @@ function ProductGrid(props: { items: Product[]; menu: Menu; lang: Lang; canOrder
             <button type="button" onClick={() => props.onOpen(p)} className="flex flex-1 flex-col text-start">
               <div className="relative aspect-square w-full bg-line">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                {p.image && <img src={p.image} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />}
+                {p.image ? <img src={p.image} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" /> : <Placeholder name={pick(lang, p.nameAr, p.nameEn)} />}
                 <div className="absolute start-2 top-2"><Badges p={p} lang={lang} /></div>
                 {!p.available && <div className="absolute inset-x-0 bottom-0 bg-black/60 py-1 text-center text-xs font-medium text-white">{t("menu.unavailable")}</div>}
               </div>
@@ -387,10 +433,35 @@ function ProductGrid(props: { items: Product[]; menu: Menu; lang: Lang; canOrder
   );
 }
 
+/** "My order": always reachable (hero and sticky bar), with a dot when something changed since the customer last looked. */
+function MyOrderButton({ label, unread, unreadLabel, onClick, variant }: { label: string; unread: boolean; unreadLabel: string; onClick: () => void; variant: "hero" | "bar" }) {
+  const base = variant === "hero"
+    ? "rounded-full bg-white/95 px-3 py-1.5 text-sm font-semibold text-gray-900 shadow"
+    : "btn-r h-12 shrink-0 border border-line bg-surface px-3 text-sm font-semibold text-ink";
+  return (
+    <button type="button" onClick={onClick} className={`relative flex items-center gap-1.5 ${base}`} aria-label={unread ? `${label} — ${unreadLabel}` : label}>
+      <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z" strokeLinejoin="round" /><path d="M9 8h6M9 12h6" strokeLinecap="round" />
+      </svg>
+      <span className={variant === "bar" ? "hidden sm:inline" : ""}>{label}</span>
+      {unread && <span className="absolute -end-1 -top-1 flex size-3.5"><span className="absolute inline-flex size-full animate-ping rounded-full bg-red-400 opacity-75 motion-reduce:animate-none" /><span className="relative inline-flex size-3.5 rounded-full border-2 border-white bg-red-500" /></span>}
+    </button>
+  );
+}
+
+/** No photo: a calm brand-tinted tile with the dish's initial instead of an empty grey box. */
+function Placeholder({ name }: { name: string }) {
+  return (
+    <div aria-hidden="true" className="grid h-full w-full place-items-center bg-gradient-to-br from-brand/15 via-brand/5 to-accent/10">
+      <span className="text-4xl font-extrabold text-brand/35">{name.trim().slice(0, 1)}</span>
+    </div>
+  );
+}
+
 function AddButton({ onClick, label, top }: { onClick: () => void; label: string; top?: boolean }) {
   return (
     <button type="button" onClick={onClick} aria-label={label}
-      className={`absolute ${top ? "end-2 top-2" : "bottom-1.5 end-1.5"} grid size-10 place-items-center rounded-full bg-surface text-2xl font-semibold text-brand shadow-md ring-1 ring-black/5 active:scale-95`}>+</button>
+      className={`absolute ${top ? "end-2 top-2" : "bottom-1.5 end-1.5"} grid size-10 place-items-center rounded-full bg-surface text-brand shadow-md ring-1 ring-black/5 active:scale-95`}><IconPlus className="size-5" strokeWidth={2.5} /></button>
   );
 }
 
@@ -473,7 +544,7 @@ function RecentOrders({ slug, lang }: { slug: string; lang: Lang }) {
   return (
     <div className="mt-8 flex flex-wrap gap-2">
       {orders.map((o) => (
-        <a key={o.token} href={`/o/${o.token}`} className="btn-r border border-line bg-surface px-4 py-2 text-sm font-medium">🧾 {t("track.title", o.number)}</a>
+        <a key={o.token} href={`/o/${o.token}`} className="btn-r inline-flex items-center gap-1.5 border border-line bg-surface px-4 py-2 text-sm font-medium"><IconReceipt className="size-4" />{t("track.title", o.number)}</a>
       ))}
     </div>
   );

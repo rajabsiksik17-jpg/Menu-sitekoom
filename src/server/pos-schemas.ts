@@ -51,6 +51,39 @@ export const rotateSchema = z.object({ uid: z.string().trim().regex(/^[0-9a-fA-F
 
 export const ackSchema = z.object({ ids: z.array(z.string().uuid()).min(1).max(200) });
 
+/** The POS sale issued when the cashier accepted the order (amounts as decimals in the restaurant currency). */
+const signed = z.number().finite().min(-1_000_000).max(1_000_000);
+export const invoiceSchema = z.object({
+  saleId: z.number().int().positive(),
+  number: z.string().trim().min(1).max(40),
+  issuedAt: z.coerce.date(),
+  cashier: z.string().trim().max(100).nullish(),
+  paymentMethod: z.string().trim().max(100).nullish(),
+  taxNumber: z.string().trim().max(60).nullish(),
+  lines: z.array(z.object({
+    name: z.string().trim().min(1).max(250),
+    quantity: z.number().finite().min(0).max(10_000),
+    unitPrice: signed, discount: signed, total: signed,
+    options: z.array(z.string().trim().max(120)).max(30).default([]),
+    note: z.string().trim().max(200).nullish(),
+  })).max(200),
+  subtotal: signed, discount: signed, tax: signed, total: signed, paid: signed,
+});
+export type InvoicePayload = z.infer<typeof invoiceSchema>;
+
+export const requestStatusSchema = z.object({
+  updates: z.array(z.object({
+    id: z.string().uuid(),
+    status: z.enum(["acknowledged", "printed", "dismissed"]),
+    seq: z.number().int().min(1),
+    at: z.coerce.date(),
+  })).min(1).max(200),
+});
+
+export const tablesCloseSchema = z.object({
+  closes: z.array(z.object({ uid: z.string().trim().min(8).max(64), closedAt: z.coerce.date() })).min(1).max(200),
+});
+
 export const statusSchema = z.object({
   updates: z.array(z.object({
     id: z.string().uuid(),
@@ -62,5 +95,6 @@ export const statusSchema = z.object({
     reason: z.string().trim().max(300).nullish(),
     posOrderId: z.number().int().positive().nullish(),
     groupLabel: z.string().trim().max(40).nullish(),
+    invoice: invoiceSchema.nullish(),
   })).min(1).max(200),
 });

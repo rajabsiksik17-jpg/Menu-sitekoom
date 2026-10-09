@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { pick, type Lang, type TextKey } from "@/lib/i18n";
 import { money, unitPrice, type Menu, type Product } from "./types";
 import { Sheet } from "./Sheet";
+import { IconMinus, IconPlus } from "./icons";
 
 type T = (k: TextKey, ...a: (string | number)[]) => string;
 
@@ -158,9 +159,9 @@ export function ProductSheet(props: {
           <div className="pb-safe border-t border-line bg-surface px-4 pt-3">
             <div className="mb-3 flex items-center gap-3">
               <div className="flex items-center rounded-full border border-line">
-                <button type="button" aria-label="-" onClick={() => setQty((q) => Math.max(1, q - 1))} className="grid size-12 place-items-center text-2xl text-brand disabled:opacity-30" disabled={qty <= 1}>−</button>
+                <button type="button" aria-label="-" onClick={() => setQty((q) => Math.max(1, q - 1))} className="grid size-12 place-items-center text-brand disabled:opacity-30" disabled={qty <= 1}><IconMinus /></button>
                 <span className="w-8 text-center text-lg font-semibold tabular-nums" aria-live="polite">{qty}</span>
-                <button type="button" aria-label="+" onClick={() => setQty((q) => Math.min(50, q + 1))} className="grid size-12 place-items-center text-2xl text-brand">+</button>
+                <button type="button" aria-label="+" onClick={() => setQty((q) => Math.min(50, q + 1))} className="grid size-12 place-items-center text-brand"><IconPlus /></button>
               </div>
               <button type="button" onClick={submit} className="btn-r flex h-12 flex-1 items-center justify-between gap-2 bg-brand px-5 font-semibold text-brand-ink shadow-sm active:scale-[.99]">
                 <span>{props.initial ? t("product.update") : t("product.add")}</span>

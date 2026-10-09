@@ -3,7 +3,7 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "@/db";
 import {
-  modifierGroups, modifierOptions, orderEvents, orderItems, orders, productModifierGroups, products, productVariants, restaurants,
+  modifierGroups, modifierOptions, orderEvents, orderItems, orders, productModifierGroups, products, productVariants, restaurants, tableSessions,
   type OrderModifier,
 } from "@/db/schema";
 import { randomToken } from "@/lib/crypto";
@@ -14,6 +14,7 @@ import { notify, channels } from "@/lib/events";
 import { mediaUrl } from "@/lib/media";
 import { findRestaurantBySlug, resolveTable, DEFAULT_THEME } from "./menu";
 import { orderingOpen } from "./entitlement";
+import { attachSession, bumpSession, notifySessions, sessionHidden } from "./sessions";
 
 export const submitSchema = z.object({
   slug: z.string().trim().min(2).max(60),
@@ -29,12 +30,12 @@ export const submitSchema = z.object({
     note: z.string().trim().max(200).nullish(),
   })).min(1).max(40),
   location: z.object({
-    lat: z.number().finite(), lng: z.number().finite(), accuracy: z.number().finite().min(0), capturedAt: z.number().finite().optional(),
+    lat: z.number().finite(), lng: z.number().finite(), accuracy: z.number().finite().min(0), capturedAt: z.number().finite(),
   }).nullish(),
 });
 export type SubmitInput = z.infer<typeof submitSchema>;
 
-export type SubmitResult = { number: number; trackingToken: string; status: string; total: number; duplicate: boolean };
+export type SubmitResult = { number: number; trackingToken: string; sessionToken: string | null; status: string; total: number; duplicate: boolean };
 
 /**
  * A customer order from a table QR. Everything that matters is decided here, never by the browser: the restaurant and
@@ -68,19 +69,23 @@ export async function submitOrder(db: Db, input: SubmitInput, ip: string, now = 
 
   try {
     const result = await db.transaction(async (tx) => {
+      const session = await attachSession(tx as unknown as Db, r, table.id!, now);
       const [seq] = await tx.update(restaurants).set({ orderSeq: sql`${restaurants.orderSeq} + 1` }).where(eq(restaurants.id, r.id)).returning({ n: restaurants.orderSeq });
       const [o] = await tx.insert(orders).values({
-        restaurantId: r.id, tableId: table.id!, tablePosUid: table.posUid!, tableNumber: table.number, number: seq!.n, trackingToken,
+        restaurantId: r.id, tableId: table.id!, sessionId: session.id, tablePosUid: table.posUid!, tableNumber: table.number, number: seq!.n, trackingToken,
         idempotencyKey: input.idempotencyKey, status: "submitted", subtotal, total: subtotal, currencyCode: r.currencyCode, currencyDecimals: r.currencyDecimals,
         note: input.note || null, lang: input.lang, clientIp: ip, submittedAt: now,
         location: input.location ? { lat: input.location.lat, lng: input.location.lng, accuracy: input.location.accuracy, distanceM: verdict?.distanceM ?? null, inside: verdict?.ok ?? false } : null,
       }).returning();
       await tx.insert(orderItems).values(priced.map((i) => ({ ...i, orderId: o!.id, restaurantId: r.id })));
       await tx.insert(orderEvents).values({ orderId: o!.id, restaurantId: r.id, status: "submitted", at: now, actor: "customer" });
-      return o!;
+      await bumpSession(tx as unknown as Db, session.id, true, now);
+      return { order: o!, session };
     });
     notify(channels.restaurantOrders(r.id));
-    return { number: result.number, trackingToken: result.trackingToken, status: result.status, total: result.total, duplicate: false };
+    notifySessions([result.session.id]);
+    const o = result.order;
+    return { number: o.number, trackingToken: o.trackingToken, sessionToken: result.session.token, status: o.status, total: o.total, duplicate: false };
   } catch (e) {
     // Two identical submissions racing: the unique key lets only one in; the other returns it.
     const again = await findByKey(db, r.id, input.idempotencyKey);
@@ -90,8 +95,9 @@ export async function submitOrder(db: Db, input: SubmitInput, ip: string, now = 
 }
 
 async function findByKey(db: Db, restaurantId: string, key: string) {
-  const [o] = await db.select({ number: orders.number, trackingToken: orders.trackingToken, status: orders.status, total: orders.total })
-    .from(orders).where(and(eq(orders.restaurantId, restaurantId), eq(orders.idempotencyKey, key))).limit(1);
+  const [o] = await db.select({ number: orders.number, trackingToken: orders.trackingToken, sessionToken: tableSessions.token, status: orders.status, total: orders.total })
+    .from(orders).leftJoin(tableSessions, eq(tableSessions.id, orders.sessionId))
+    .where(and(eq(orders.restaurantId, restaurantId), eq(orders.idempotencyKey, key))).limit(1);
   return o ?? null;
 }
 
@@ -153,7 +159,7 @@ export async function priceItems(db: Db, restaurantId: string, defaultPrep: numb
 export async function getTracking(db: Db, trackingToken: string, now = new Date()) {
   if (!/^[A-Za-z0-9_-]{24,64}$/.test(trackingToken)) return null;
   const [o] = await db.select().from(orders).where(eq(orders.trackingToken, trackingToken)).limit(1);
-  if (!o) return null;
+  if (!o || (await sessionHidden(db, o.sessionId, now))) return null;
   const [r] = await db.select().from(restaurants).where(eq(restaurants.id, o.restaurantId)).limit(1);
   const items = await db.select().from(orderItems).where(eq(orderItems.orderId, o.id)).orderBy(asc(orderItems.id));
   const events = await db.select().from(orderEvents).where(eq(orderEvents.orderId, o.id)).orderBy(asc(orderEvents.at), asc(orderEvents.id));

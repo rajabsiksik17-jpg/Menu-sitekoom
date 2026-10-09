@@ -5,6 +5,7 @@ import { getDb } from "@/db";
 import { loadPublicMenu } from "@/server/menu";
 import { isLang, pick, translator, type Lang } from "@/lib/i18n";
 import { MenuApp } from "@/components/menu/MenuApp";
+import { IconUtensils } from "@/components/menu/icons";
 
 export async function menuMetadata(slug: string): Promise<Metadata> {
   const menu = await loadPublicMenu(await getDb(), slug, null);
@@ -24,7 +25,7 @@ export async function MenuPage({ slug, token }: { slug: string; token: string | 
     return (
       <main className="grid min-h-dvh place-items-center p-6 text-center">
         <div>
-          <div className="text-5xl" aria-hidden="true">🍽️</div>
+          <IconUtensils className="mx-auto size-14 text-gray-400" strokeWidth={1.5} />
           <h1 className="mt-4 text-xl font-bold">{pick(lang, menu.restaurant.nameAr, menu.restaurant.nameEn)}</h1>
           <p className="mt-2 text-gray-600">{t("menu.unavailableRestaurant")}</p>
         </div>

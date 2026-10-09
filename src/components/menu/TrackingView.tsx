@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { dirOf, pick, translator, type Lang } from "@/lib/i18n";
 import type { Tracking } from "@/server/orders";
+import { IconCircleCheck, IconCircleX, IconHourglass } from "./icons";
 
 const STEPS = ["sent", "accepted", "preparing", "ready"] as const;
 const stepOf = (s: string) => (s === "submitted" || s === "delivered" ? 0 : s === "accepted" ? 1 : s === "preparing" ? 2 : s === "ready" || s === "completed" ? 3 : -1);
@@ -114,8 +115,8 @@ export function TrackingView({ token, initial, lang }: { token: string; initial:
         </div>
 
         <section className="mt-6 rounded-3xl bg-surface p-6 text-center shadow-sm ring-1 ring-black/5" aria-live="polite">
-          {o.status === "ready" ? <div className="text-6xl" aria-hidden="true">🎉</div>
-            : o.status === "rejected" || o.status === "cancelled" ? <div className="text-6xl" aria-hidden="true">😔</div>
+          {o.status === "ready" ? <IconCircleCheck className="mx-auto size-20 text-emerald-600" strokeWidth={1.5} />
+            : o.status === "rejected" || o.status === "cancelled" ? <IconCircleX className="mx-auto size-20 text-red-500" strokeWidth={1.5} />
             : counting ? (
               <div className="relative mx-auto size-44">
                 <svg viewBox="0 0 100 100" className="size-full -rotate-90" aria-hidden="true">
@@ -124,7 +125,7 @@ export function TrackingView({ token, initial, lang }: { token: string; initial:
                     strokeDasharray={2 * Math.PI * 44} strokeDashoffset={2 * Math.PI * 44 * (1 - Math.min(1, progress))} style={{ transition: "stroke-dashoffset 1s linear" }} />
                 </svg>
                 <div className="absolute inset-0 grid place-items-center">
-                  {overdue ? <span className="px-6 text-sm font-medium text-muted">⏳</span> : (
+                  {overdue ? <IconHourglass className="size-8 text-muted" /> : (
                     <div>
                       <div className="text-4xl font-bold tabular-nums" dir="ltr">{String(mm).padStart(2, "0")}:{String(ss).padStart(2, "0")}</div>
                       <div className="mt-1 text-xs text-muted">{t("track.remaining")}</div>

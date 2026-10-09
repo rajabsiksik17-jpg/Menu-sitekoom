@@ -33,6 +33,12 @@ export function RestaurantFields({ r, t }: { r?: R; t: (k: AdminKey) => string }
       </Field>
       <Field label={t("r.timezone")}><input name="timezone" defaultValue={r?.timezone ?? "Asia/Amman"} dir="ltr" className="input" /></Field>
       <label className="flex items-center gap-2 self-end pb-2 text-sm"><input type="checkbox" name="showContact" defaultChecked={r?.showContact ?? true} /> {t("r.showContact")}</label>
+      <Field label={t("r.invoiceVisible")} hint={t("r.invoiceVisibleHint")}>
+        <input name="invoiceVisibleMinutes" type="number" min={0} max={1440} step={1} required defaultValue={r?.invoiceVisibleMinutes ?? 15} dir="ltr" className="input" />
+      </Field>
+      <Field label={t("r.sessionIdle")} hint={t("r.sessionIdleHint")}>
+        <input name="sessionIdleMinutes" type="number" min={30} max={1440} step={5} required defaultValue={r?.sessionIdleMinutes ?? 240} dir="ltr" className="input" />
+      </Field>
     </div>
   );
 }

@@ -10,7 +10,8 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
   const { t } = await adminT();
   if (!r) return null;
   const keys = ["geo.enabled", "geo.mode", "geo.radius", "geo.polygon", "geo.radiusM", "geo.accuracy", "geo.search", "geo.searchBtn", "geo.clickHint", "geo.clearPolygon",
-    "geo.undo", "geo.lat", "geo.lng", "geo.incomplete", "geo.note", "common.save"] as const;
+    "geo.undo", "geo.lat", "geo.lng", "geo.incomplete", "geo.note", "common.save", "geo.locate", "geo.locating", "geo.locAccuracy", "geo.locLow", "geo.locDenied",
+    "geo.locTimeout", "geo.locUnsupported", "geo.locUnavailable", "geo.dragHint", "geo.locNote"] as const;
   const labels = Object.fromEntries(keys.map((k) => [k, t(k)])) as Record<(typeof keys)[number], string>;
   return (
     <Card title={t("tab.location")}>

@@ -33,6 +33,9 @@ export const restaurantSchema = z.object({
   defaultLang: z.enum(["ar", "en"]).default("ar"),
   languages: z.array(z.enum(["ar", "en"])).min(1).default(["ar", "en"]),
   timezone: z.string().trim().max(60).default("Asia/Amman"),
+  // Table sessions: final invoice display time after closing (0–1440 min) and automatic close after inactivity (30–1440 min).
+  invoiceVisibleMinutes: z.coerce.number().int().min(0).max(1440).default(15),
+  sessionIdleMinutes: z.coerce.number().int().min(30).max(1440).default(240),
 });
 export type RestaurantInput = z.input<typeof restaurantSchema>;
 

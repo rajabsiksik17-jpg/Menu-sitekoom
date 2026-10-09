@@ -21,7 +21,7 @@ const nextConfig: NextConfig = {
   // sharp loads libvips (with the text renderer used for QR cards) dynamically: the tracer misses it and sharp would fall
   // back to its WebAssembly build, which cannot draw text. Ship the native packages for the build platform explicitly.
   // The webpack build (used on Hostinger) also misses next/dist/lib/metadata, which the standalone server requires at start.
-  outputFileTracingIncludes: { "*": ["./drizzle/**", "./assets/fonts/**", "./node_modules/@img/sharp-*/**", "./node_modules/next/dist/lib/metadata/**"] },
+  outputFileTracingIncludes: { "*": ["./drizzle/**", "./assets/fonts/**", "./node_modules/@img/sharp-*/**", "./node_modules/next/dist/lib/metadata/**", "./node_modules/@electric-sql/pglite/dist/**"] },
   images: { unoptimized: true }, // menu images are already optimized (WebP, sized) when stored
   // Dashboard uploads (logo, cover, banners) go through Server Actions: allow up to 8 MB images.
   experimental: { serverActions: { bodySizeLimit: "9mb" } },

@@ -30,4 +30,5 @@ export function waitFor(channel: string, ms: number, signal?: AbortSignal): Prom
 
 export const channels = {
   restaurantOrders: (restaurantId: string) => `orders:${restaurantId}`,
+  session: (sessionId: string) => `session:${sessionId}`,
 };

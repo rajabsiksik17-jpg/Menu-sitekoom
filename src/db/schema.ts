@@ -28,7 +28,7 @@ export const platformAdmins = pgTable("platform_admins", {
   totpLastStep: integer("totp_last_step"), // a code is accepted once (no replay)
   failedLogins: integer("failed_logins").notNull().default(0),
   lockedUntil: ts("locked_until"),
-}, (t) => [uniqueIndex("ux_platform_admins_email").on(t.email)]);
+}, (t) => [uniqueIndex("ux_platform_admins_email").on(t.email)]).enableRLS();
 
 export const adminSessions = pgTable("admin_sessions", {
   // SHA-256 of the cookie token: a database leak does not reveal live sessions.
@@ -38,7 +38,7 @@ export const adminSessions = pgTable("admin_sessions", {
   expiresAt: ts("expires_at").notNull(),
   ip: text("ip"),
   userAgent: text("user_agent"),
-}, (t) => [index("ix_admin_sessions_admin").on(t.adminId)]);
+}, (t) => [index("ix_admin_sessions_admin").on(t.adminId)]).enableRLS();
 
 // ── Tenants ────────────────────────────────────────────────────────────────
 
@@ -86,6 +86,10 @@ export const restaurants = pgTable("restaurants", {
   radiusM: integer("radius_m").notNull().default(80),
   polygon: jsonb("polygon").$type<Polygon>(),
   maxAccuracyM: integer("max_accuracy_m").notNull().default(100),
+  // Table sessions: how long the final invoice stays visible to the table's customers after the session is closed, and
+  // after how long without activity an open session (all orders finished) is closed automatically.
+  invoiceVisibleMinutes: integer("invoice_visible_minutes").notNull().default(15),
+  sessionIdleMinutes: integer("session_idle_minutes").notNull().default(240),
   // Synced from the POS settings.
   defaultPrepMinutes: integer("default_prep_minutes").notNull().default(15),
   requireAcceptance: boolean("require_acceptance").notNull().default(true),
@@ -96,7 +100,7 @@ export const restaurants = pgTable("restaurants", {
   orderSeq: integer("order_seq").notNull().default(0),
   createdAt: ts("created_at").notNull().default(now()),
   updatedAt: ts("updated_at").notNull().default(now()),
-}, (t) => [uniqueIndex("ux_restaurants_slug").on(t.slug)]);
+}, (t) => [uniqueIndex("ux_restaurants_slug").on(t.slug)]).enableRLS();
 
 /** A POS installation connected to a restaurant (main device). Authenticates with a bearer token stored hashed. */
 export const posDevices = pgTable("pos_devices", {
@@ -111,7 +115,7 @@ export const posDevices = pgTable("pos_devices", {
   lastSeenAt: ts("last_seen_at"),
   lastIp: text("last_ip"),
   revokedAt: ts("revoked_at"),
-}, (t) => [uniqueIndex("ux_pos_devices_token").on(t.tokenHash), index("ix_pos_devices_restaurant").on(t.restaurantId)]);
+}, (t) => [uniqueIndex("ux_pos_devices_token").on(t.tokenHash), index("ix_pos_devices_restaurant").on(t.restaurantId)]).enableRLS();
 
 /** One-time code typed on the POS to connect it (short-lived, single use, stored hashed). */
 export const enrollmentCodes = pgTable("enrollment_codes", {
@@ -123,7 +127,7 @@ export const enrollmentCodes = pgTable("enrollment_codes", {
   usedByDeviceId: uuid("used_by_device_id"),
   createdBy: uuid("created_by"),
   createdAt: ts("created_at").notNull().default(now()),
-}, (t) => [uniqueIndex("ux_enrollment_codes_hash").on(t.codeHash)]);
+}, (t) => [uniqueIndex("ux_enrollment_codes_hash").on(t.codeHash)]).enableRLS();
 
 export const media = pgTable("media", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -136,7 +140,7 @@ export const media = pgTable("media", {
   path: text("path").notNull(),
   source: text("source").notNull().default("pos"), // pos | admin
   createdAt: ts("created_at").notNull().default(now()),
-}, (t) => [uniqueIndex("ux_media_restaurant_sha").on(t.restaurantId, t.sha256)]);
+}, (t) => [uniqueIndex("ux_media_restaurant_sha").on(t.restaurantId, t.sha256)]).enableRLS();
 
 // ── Menu (synced from the POS: the POS is the source of truth) ────────────
 
@@ -151,7 +155,7 @@ export const categories = pgTable("categories", {
   imageSha: text("image_sha"),
   sort: integer("sort").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
-}, (t) => [uniqueIndex("ux_categories_pos").on(t.restaurantId, t.posId)]);
+}, (t) => [uniqueIndex("ux_categories_pos").on(t.restaurantId, t.posId)]).enableRLS();
 
 export const products = pgTable("products", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -175,7 +179,7 @@ export const products = pgTable("products", {
   labelAr: text("label_ar"),
   labelEn: text("label_en"),
   popularity: integer("popularity").notNull().default(0),
-}, (t) => [uniqueIndex("ux_products_pos").on(t.restaurantId, t.posId), index("ix_products_category").on(t.restaurantId, t.categoryPosId)]);
+}, (t) => [uniqueIndex("ux_products_pos").on(t.restaurantId, t.posId), index("ix_products_category").on(t.restaurantId, t.categoryPosId)]).enableRLS();
 
 /** Flavors of a product (price override of the base unit); selling a flavor moves the parent product's stock in the POS. */
 export const productVariants = pgTable("product_variants", {
@@ -188,7 +192,7 @@ export const productVariants = pgTable("product_variants", {
   imageSha: text("image_sha"),
   sort: integer("sort").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
-}, (t) => [uniqueIndex("ux_variants_pos").on(t.restaurantId, t.posId)]);
+}, (t) => [uniqueIndex("ux_variants_pos").on(t.restaurantId, t.posId)]).enableRLS();
 
 export const modifierGroups = pgTable("modifier_groups", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -199,7 +203,7 @@ export const modifierGroups = pgTable("modifier_groups", {
   maxSelect: integer("max_select").notNull().default(1),
   sort: integer("sort").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
-}, (t) => [uniqueIndex("ux_modifier_groups_pos").on(t.restaurantId, t.posId)]);
+}, (t) => [uniqueIndex("ux_modifier_groups_pos").on(t.restaurantId, t.posId)]).enableRLS();
 
 export const modifierOptions = pgTable("modifier_options", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -211,14 +215,14 @@ export const modifierOptions = pgTable("modifier_options", {
   isDefault: boolean("is_default").notNull().default(false),
   sort: integer("sort").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
-}, (t) => [uniqueIndex("ux_modifier_options_pos").on(t.restaurantId, t.posId)]);
+}, (t) => [uniqueIndex("ux_modifier_options_pos").on(t.restaurantId, t.posId)]).enableRLS();
 
 export const productModifierGroups = pgTable("product_modifier_groups", {
   restaurantId: uuid("restaurant_id").notNull().references(() => restaurants.id, { onDelete: "cascade" }),
   productPosId: bigint("product_pos_id", { mode: "number" }).notNull(),
   groupPosId: bigint("group_pos_id", { mode: "number" }).notNull(),
   sort: integer("sort").notNull().default(0),
-}, (t) => [primaryKey({ columns: [t.restaurantId, t.productPosId, t.groupPosId] })]);
+}, (t) => [primaryKey({ columns: [t.restaurantId, t.productPosId, t.groupPosId] })]).enableRLS();
 
 // ── Tables (created on the POS, mirrored here with their public QR token) ─
 
@@ -234,19 +238,51 @@ export const diningTables = pgTable("dining_tables", {
   tokenRotatedAt: ts("token_rotated_at").notNull().default(now()),
   createdAt: ts("created_at").notNull().default(now()),
   updatedAt: ts("updated_at").notNull().default(now()),
-}, (t) => [uniqueIndex("ux_tables_pos_uid").on(t.restaurantId, t.posUid), uniqueIndex("ux_tables_token").on(t.token)]);
+}, (t) => [uniqueIndex("ux_tables_pos_uid").on(t.restaurantId, t.posUid), uniqueIndex("ux_tables_token").on(t.token)]).enableRLS();
 
 /** Old QR tokens after a regeneration: scanning one tells the customer the code was replaced (never orders). */
 export const revokedTableTokens = pgTable("revoked_table_tokens", {
   token: text("token").primaryKey(),
   tableId: uuid("table_id").notNull().references(() => diningTables.id, { onDelete: "cascade" }),
   revokedAt: ts("revoked_at").notNull().default(now()),
-});
+}).enableRLS();
+
+/**
+ * One sitting at a table: from the first order of a party until the cashier ends it (or it idles out). The customers of
+ * the table reach it with an unguessable token kept on their phones; a new party after closing gets a new session, so it
+ * never sees the previous party's orders or invoice. Closing only hides the customer view — orders and invoices stay.
+ * version: any change; customerVersion: changes worth a notification badge (status, invoice, request, closing).
+ */
+export const tableSessions = pgTable("table_sessions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  restaurantId: uuid("restaurant_id").notNull().references(() => restaurants.id, { onDelete: "cascade" }),
+  tableId: uuid("table_id").notNull().references(() => diningTables.id, { onDelete: "cascade" }),
+  token: text("token").notNull(),
+  openedAt: ts("opened_at").notNull().default(now()),
+  lastActivityAt: ts("last_activity_at").notNull().default(now()),
+  closedAt: ts("closed_at"),
+  closeReason: text("close_reason"), // pos | idle
+  visibleUntil: ts("visible_until"),
+  version: integer("version").notNull().default(0),
+  customerVersion: integer("customer_version").notNull().default(0),
+}, (t) => [
+  uniqueIndex("ux_table_sessions_token").on(t.token),
+  // At most one open session per table (serialises concurrent first orders).
+  uniqueIndex("ux_table_sessions_open").on(t.tableId).where(sql`closed_at is null`),
+  index("ix_table_sessions_restaurant").on(t.restaurantId, t.openedAt),
+]).enableRLS();
 
 // ── Orders ─────────────────────────────────────────────────────────────────
 
 export type OrderModifier = { posId: number; group: string; name: string; priceDelta: number };
 export type OrderLocation = { lat: number; lng: number; accuracy: number; distanceM: number | null; inside: boolean };
+
+/** The POS sale created when the cashier accepted the order (authoritative amounts, minor units). Never computed here. */
+export type OrderInvoice = {
+  saleId: number; number: string; issuedAt: string; cashier: string | null; paymentMethod: string | null;
+  lines: { name: string; quantity: number; unitPrice: number; discount: number; total: number; options: string[]; note: string | null }[];
+  subtotal: number; discount: number; tax: number; total: number; paid: number; taxNumber: string | null;
+};
 
 /**
  * submitted (cloud stored) → delivered (persisted by the POS) → accepted (cashier) → preparing → ready → completed;
@@ -256,6 +292,7 @@ export const orders = pgTable("orders", {
   id: uuid("id").primaryKey().defaultRandom(),
   restaurantId: uuid("restaurant_id").notNull().references(() => restaurants.id, { onDelete: "cascade" }),
   tableId: uuid("table_id").notNull().references(() => diningTables.id),
+  sessionId: uuid("session_id").references(() => tableSessions.id),
   tablePosUid: text("table_pos_uid").notNull(),
   tableNumber: integer("table_number").notNull(),
   number: integer("number").notNull(),
@@ -284,6 +321,7 @@ export const orders = pgTable("orders", {
   reason: text("reason"),
   posOrderId: bigint("pos_order_id", { mode: "number" }),
   groupLabel: text("group_label"),
+  invoice: jsonb("invoice").$type<OrderInvoice>(),
   statusSeq: integer("status_seq").notNull().default(0),
   updatedAt: ts("updated_at").notNull().default(now()),
 }, (t) => [
@@ -292,7 +330,8 @@ export const orders = pgTable("orders", {
   uniqueIndex("ux_orders_number").on(t.restaurantId, t.number),
   index("ix_orders_restaurant_status").on(t.restaurantId, t.status),
   index("ix_orders_submitted").on(t.restaurantId, t.submittedAt),
-]);
+  index("ix_orders_session").on(t.sessionId),
+]).enableRLS();
 
 export const orderItems = pgTable("order_items", {
   id: serial("id").primaryKey(),
@@ -310,7 +349,7 @@ export const orderItems = pgTable("order_items", {
   note: text("note"),
   prepMinutes: integer("prep_minutes").notNull(),
   lineTotal: bigint("line_total", { mode: "number" }).notNull(),
-}, (t) => [index("ix_order_items_order").on(t.orderId)]);
+}, (t) => [index("ix_order_items_order").on(t.orderId)]).enableRLS();
 
 export const orderEvents = pgTable("order_events", {
   id: serial("id").primaryKey(),
@@ -320,7 +359,27 @@ export const orderEvents = pgTable("order_events", {
   at: ts("at").notNull().default(now()),
   actor: text("actor").notNull(), // customer | platform | pos | admin
   note: text("note"),
-}, (t) => [index("ix_order_events_order").on(t.orderId)]);
+}, (t) => [index("ix_order_events_order").on(t.orderId)]).enableRLS();
+
+/**
+ * A customer asked for the table's invoice. pending (stored) → delivered (the POS has it) → acknowledged / printed /
+ * dismissed (cashier). Only one active request per session; a new one is possible after the previous was handled.
+ */
+export const invoiceRequests = pgTable("invoice_requests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  restaurantId: uuid("restaurant_id").notNull().references(() => restaurants.id, { onDelete: "cascade" }),
+  sessionId: uuid("session_id").notNull().references(() => tableSessions.id, { onDelete: "cascade" }),
+  tablePosUid: text("table_pos_uid").notNull(),
+  tableNumber: integer("table_number").notNull(),
+  status: text("status").notNull().default("pending"),
+  statusSeq: integer("status_seq").notNull().default(0),
+  requestedAt: ts("requested_at").notNull().default(now()),
+  deliveredAt: ts("delivered_at"),
+  handledAt: ts("handled_at"),
+}, (t) => [
+  uniqueIndex("ux_invoice_requests_active").on(t.sessionId).where(sql`status in ('pending', 'delivered', 'acknowledged')`),
+  index("ix_invoice_requests_restaurant").on(t.restaurantId, t.status),
+]).enableRLS();
 
 // ── Content ────────────────────────────────────────────────────────────────
 
@@ -343,7 +402,7 @@ export const promotions = pgTable("promotions", {
   endsAt: ts("ends_at"),
   archivedAt: ts("archived_at"),
   createdAt: ts("created_at").notNull().default(now()),
-}, (t) => [index("ix_promotions_restaurant").on(t.restaurantId)]);
+}, (t) => [index("ix_promotions_restaurant").on(t.restaurantId)]).enableRLS();
 
 // ── Observability ──────────────────────────────────────────────────────────
 
@@ -356,7 +415,7 @@ export const auditLogs = pgTable("audit_logs", {
   details: jsonb("details").$type<Record<string, unknown>>(),
   ip: text("ip"),
   at: ts("at").notNull().default(now()),
-}, (t) => [index("ix_audit_restaurant_at").on(t.restaurantId, t.at)]);
+}, (t) => [index("ix_audit_restaurant_at").on(t.restaurantId, t.at)]).enableRLS();
 
 export const syncLogs = pgTable("sync_logs", {
   id: serial("id").primaryKey(),
@@ -366,4 +425,4 @@ export const syncLogs = pgTable("sync_logs", {
   ok: boolean("ok").notNull(),
   detail: text("detail"),
   at: ts("at").notNull().default(now()),
-}, (t) => [index("ix_sync_logs_restaurant_at").on(t.restaurantId, t.at)]);
+}, (t) => [index("ix_sync_logs_restaurant_at").on(t.restaurantId, t.at)]).enableRLS();

@@ -3,7 +3,7 @@ import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 import type { Db } from "@/db";
 import {
   categories, diningTables, enrollmentCodes, media, modifierGroups, modifierOptions, orderEvents, orderItems, orders, posDevices,
-  productModifierGroups, products, productVariants, restaurants, revokedTableTokens,
+  productModifierGroups, products, productVariants, restaurants, revokedTableTokens, type OrderInvoice,
 } from "@/db/schema";
 import { randomToken, sha256 } from "@/lib/crypto";
 import { AppError, forbidden, notFound, unauthorized } from "@/lib/errors";
@@ -11,7 +11,8 @@ import { env } from "@/lib/env";
 import { toMinor } from "@/lib/money";
 import { audit, syncLog } from "@/lib/audit";
 import { channels, waitFor } from "@/lib/events";
-import type { MenuPayload } from "./pos-schemas";
+import type { InvoicePayload, MenuPayload } from "./pos-schemas";
+import { bumpSession, notifySessions, pendingRequests } from "./sessions";
 import { serviceState } from "./entitlement";
 
 export type Device = { id: string; restaurantId: string; name: string };
@@ -242,17 +243,32 @@ export async function ackOrders(db: Db, device: Device, ids: string[]) {
   const now = new Date();
   const updated = await db.update(orders).set({ status: "delivered", deliveredAt: now, updatedAt: now })
     .where(and(eq(orders.restaurantId, device.restaurantId), inArray(orders.id, ids), eq(orders.status, "submitted")))
-    .returning({ id: orders.id });
-  if (updated.length)
+    .returning({ id: orders.id, sessionId: orders.sessionId });
+  if (updated.length) {
     await db.insert(orderEvents).values(updated.map((u) => ({ orderId: u.id, restaurantId: device.restaurantId, status: "delivered", at: now, actor: "pos" })));
+    const sessions = [...new Set(updated.map((u) => u.sessionId).filter((s): s is string => !!s))];
+    for (const s of sessions) await bumpSession(db, s, false, now);
+    notifySessions(sessions);
+  }
   await syncLog(db, device.restaurantId, device.id, "ack", true, `${updated.length}/${ids.length}`);
   return { acknowledged: updated.map((u) => u.id) };
 }
 
 type StatusUpdate = {
   id: string; status: string; seq: number; at: Date; prepMinutes?: number | null; estimatedReadyAt?: Date | null;
-  reason?: string | null; posOrderId?: number | null; groupLabel?: string | null;
+  reason?: string | null; posOrderId?: number | null; groupLabel?: string | null; invoice?: InvoicePayload | null;
 };
+
+/** The POS invoice in minor units of the order's currency (amounts are taken as issued, never recomputed). */
+function invoiceMinor(i: InvoicePayload, decimals: number): OrderInvoice {
+  const m = (v: number) => toMinor(v, decimals);
+  return {
+    saleId: i.saleId, number: i.number, issuedAt: i.issuedAt.toISOString(), cashier: i.cashier ?? null, paymentMethod: i.paymentMethod ?? null,
+    taxNumber: i.taxNumber ?? null,
+    lines: i.lines.map((l) => ({ name: l.name, quantity: l.quantity, unitPrice: m(l.unitPrice), discount: m(l.discount), total: m(l.total), options: l.options, note: l.note ?? null })),
+    subtotal: m(i.subtotal), discount: m(i.discount), tax: m(i.tax), total: m(i.total), paid: m(i.paid),
+  };
+}
 
 const FINAL = new Set(["completed", "rejected", "cancelled"]);
 
@@ -262,6 +278,7 @@ const FINAL = new Set(["completed", "rejected", "cancelled"]);
  */
 export async function applyStatuses(db: Db, device: Device, updates: StatusUpdate[]) {
   const applied: string[] = [];
+  const touched: string[] = [];
   for (const u of updates) {
     const ok = await db.transaction(async (tx) => {
       const [o] = await tx.select().from(orders).where(and(eq(orders.id, u.id), eq(orders.restaurantId, device.restaurantId))).limit(1).for("update");
@@ -282,23 +299,30 @@ export async function applyStatuses(db: Db, device: Device, updates: StatusUpdat
       }
       if (u.posOrderId != null) set.posOrderId = u.posOrderId;
       if (u.groupLabel !== undefined) set.groupLabel = u.groupLabel;
+      if (u.invoice) set.invoice = invoiceMinor(u.invoice, o.currencyDecimals);
       if (!o.deliveredAt) set.deliveredAt = u.at;
       await tx.update(orders).set(set).where(eq(orders.id, o.id));
       if (u.status !== o.status || u.estimatedReadyAt !== undefined)
         await tx.insert(orderEvents).values({ orderId: o.id, restaurantId: o.restaurantId, status: u.status, at: u.at, actor: "pos", note: u.reason ?? null });
+      if (o.sessionId) {
+        await bumpSession(tx as unknown as Db, o.sessionId, u.status !== o.status || (!!u.invoice && !o.invoice) || set.etaChangedAt !== undefined);
+        touched.push(o.sessionId);
+      }
       return true;
     });
     if (ok) applied.push(u.id);
   }
+  notifySessions(touched);
   await syncLog(db, device.restaurantId, device.id, "status", true, `${applied.length}/${updates.length}`);
   return { applied };
 }
 
+/** New orders and invoice requests for the POS long poll (a request wakes the waiting POS like an order does). */
 export async function waitForOrders(db: Db, restaurantId: string, waitMs: number, signal?: AbortSignal) {
   const deadline = Date.now() + waitMs;
   for (;;) {
-    const list = await pendingOrders(db, restaurantId);
-    if (list.length || Date.now() >= deadline || signal?.aborted) return list;
+    const [list, requests] = await Promise.all([pendingOrders(db, restaurantId), pendingRequests(db, restaurantId)]);
+    if (list.length || requests.length || Date.now() >= deadline || signal?.aborted) return { orders: list, requests };
     await waitFor(channels.restaurantOrders(restaurantId), Math.min(5000, deadline - Date.now()), signal);
   }
 }

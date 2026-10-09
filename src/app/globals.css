@@ -43,6 +43,10 @@ body { background: var(--color-canvas); color: var(--color-ink); }
 @media print {
   .no-print { display: none !important; }
   body { background: #fff; }
+  /* Customer invoice: only the invoice is printed (or saved as PDF), not the menu behind the sheet. */
+  html.print-invoice body * { visibility: hidden !important; }
+  html.print-invoice .print-area, html.print-invoice .print-area * { visibility: visible !important; }
+  html.print-invoice .print-area { position: fixed; inset: 0 0 auto 0; box-shadow: none; }
 }
 
 /* Dashboard controls */
