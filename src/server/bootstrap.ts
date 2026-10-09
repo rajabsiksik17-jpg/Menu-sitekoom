@@ -27,12 +27,31 @@ export async function bootstrap() {
   log.info("bootstrap.ready", { publicUrl: env.publicUrl });
 }
 
-/** Startup entry: on misconfiguration (missing APP_SECRET, unreachable database…) stop the process so the supervisor restarts and alerts. */
+const PROBLEM = Symbol.for("smenu.startupProblem");
+type G = typeof globalThis & { [PROBLEM]?: string };
+
+/**
+ * Why the server could not start, safe to show publicly (no connection strings, host names or secrets), or null.
+ * Shown on the sign-in page so a misconfiguration is visible without access to the host's logs.
+ */
+export function startupProblem(): string | null {
+  return (globalThis as G)[PROBLEM] ?? null;
+}
+
+const redact = (m: string) =>
+  m.replace(/postgres(ql)?:\/\/\S+/gi, "postgres://…").replace(/\b[\w.-]+\.(supabase\.(co|com)|amazonaws\.com)\b(:\d+)?/gi, "…").slice(0, 300);
+
+/**
+ * Startup entry. On misconfiguration (missing APP_SECRET, unreachable database, invalid first-admin password…) the
+ * process keeps running but reports the problem (log + sign-in page + /api/health 503) instead of exiting: hosts that
+ * only show a generic "503 Service Unavailable" for a crashed app would otherwise hide the reason.
+ */
 export async function start() {
   try {
     await bootstrap();
   } catch (e) {
-    log.error("bootstrap.failed", { error: e instanceof Error ? e.message : String(e) });
-    process.exit(1);
+    const message = e instanceof Error ? e.message : String(e);
+    log.error("bootstrap.failed", { error: message });
+    (globalThis as G)[PROBLEM] = redact(message);
   }
 }
