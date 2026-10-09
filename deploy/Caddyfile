@@ -1,0 +1,21 @@
+{$MENU_DOMAIN} {
+	encode zstd gzip
+	# Request limits in front of the application (uploads up to 9 MB, POS menu sync up to 8 MB).
+	request_body {
+		max_size 10MB
+	}
+	reverse_proxy web:3000 {
+		header_up X-Forwarded-Host {host}
+		# Long-poll requests of the POS stay open up to 25 s.
+		transport http {
+			read_timeout 60s
+		}
+	}
+	header {
+		-Server
+	}
+	log {
+		output stdout
+		format json
+	}
+}

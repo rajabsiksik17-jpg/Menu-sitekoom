@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-plex), "Segoe UI", Tahoma, system-ui, sans-serif;
+  --color-brand: var(--brand, #0b5cad);
+  --color-brand-ink: var(--brand-ink, #ffffff);
+  --color-accent: var(--accent, #f59e0b);
+  --color-surface: var(--surface, #ffffff);
+  --color-canvas: var(--canvas, #f6f7f9);
+  --color-ink: var(--ink, #111827);
+  --color-muted: var(--muted, #6b7280);
+  --color-line: var(--line, #e5e7eb);
+}
+
+html { -webkit-text-size-adjust: 100%; }
+body { background: var(--color-canvas); color: var(--color-ink); }
+
+/* Restaurant backgrounds (theme.background) */
+.bg-light { --canvas: #f6f7f9; --surface: #ffffff; --ink: #111827; --muted: #6b7280; --line: #e7e9ee; }
+.bg-warm { --canvas: #faf6f0; --surface: #fffdf9; --ink: #2a2118; --muted: #7c6f60; --line: #eadfd0; }
+.bg-dark { --canvas: #0f1115; --surface: #1a1d23; --ink: #f3f4f6; --muted: #9ca3af; --line: #2a2f38; color-scheme: dark; }
+
+.radius-rounded { --r-btn: 14px; --r-card: 18px; }
+.radius-pill { --r-btn: 999px; --r-card: 22px; }
+.radius-square { --r-btn: 6px; --r-card: 8px; }
+.btn-r { border-radius: var(--r-btn, 14px); }
+.card-r { border-radius: var(--r-card, 18px); }
+
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+.pb-safe { padding-bottom: max(env(safe-area-inset-bottom), 0px); }
+.mb-safe { margin-bottom: env(safe-area-inset-bottom); }
+
+@keyframes sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pop { 0% { transform: scale(.96); } 50% { transform: scale(1.04); } 100% { transform: scale(1); } }
+.animate-sheet { animation: sheet-up .28s cubic-bezier(.2,.8,.2,1); }
+.animate-fade { animation: fade-in .2s ease-out; }
+.animate-pop { animation: pop .35s ease-out; }
+@media (prefers-reduced-motion: reduce) { .animate-sheet, .animate-fade, .animate-pop { animation: none; } }
+
+@media print {
+  .no-print { display: none !important; }
+  body { background: #fff; }
+}
+
+/* Dashboard controls */
+@layer components {
+  .btn-primary { @apply inline-flex items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-800 disabled:opacity-60; }
+  .btn-secondary { @apply inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 transition hover:bg-slate-50 disabled:opacity-60; }
+  .btn-danger { @apply inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 disabled:opacity-60; }
+  .input { @apply block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100; }
+}

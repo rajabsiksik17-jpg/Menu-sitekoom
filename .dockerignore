@@ -1,0 +1,8 @@
+node_modules
+.next
+data
+data-dev
+data-e2e
+.env
+tests
+*.md
